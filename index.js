@@ -25,4 +25,9 @@ app.get("/isMatched", (req, res) => {
   res.send(matchmaker.IsMatched(req.query.id))
 })
 
+app.get("/clear",  (req, res) => {
+  logger.log("info", "New clear request.")
+  res.send(matchmaker.Clear())
+})
+
 app.listen(PORT, () => console.log(`Listening on ${PORT}`))

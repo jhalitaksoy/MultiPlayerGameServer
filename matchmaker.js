@@ -14,7 +14,6 @@ exports.Login = function() {
     logger.log("info", "New player created : " + id)
     logger.log("info", "Player moved to waiting list : " + id)
 
-    exports.Match(id)
     return id
 }
 
@@ -26,17 +25,21 @@ exports.Match =  function(id) {
             }
         })
     }
+    return "ok"
 }
 
 exports.IsMatched = function(id){
     return !IsWaiting(id)
 }
 
+exports.Clear = function(){
+    waitingUsers.splice(0,waitingUsers.length)
+    playingUsers.splice(0,playingUsers.length)
+}
+
 function Play(id, otherId) {
     _Play(id, otherId)
     _Play(otherId, id)
-    console.log(waitingUsers)
-    console.log(playingUsers)
     logger.log("info", "Users playing :  " + id + "  " + otherId)
 }
 
