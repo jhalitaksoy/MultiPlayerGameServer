@@ -1,7 +1,7 @@
 {
-  "name": "node-js-getting-started",
+  "name": "node-js-multiplayer-game-server",
   "version": "0.3.0",
-  "description": "A sample Node.js app using Express 4",
+  "description": "NodeJS server for the multiplayer game.",
   "engines": {
     "node": "12.x"
   },
@@ -18,10 +18,6 @@
   "devDependencies": {
     "request": "^2.81.0",
     "tape": "^4.7.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/heroku/node-js-getting-started"
   },
   "keywords": [
     "node",
