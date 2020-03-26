@@ -29,6 +29,7 @@ exports.Match =  function(id) {
 }
 
 exports.IsMatched = function(id){
+    console.log("id : " + id)
     return !IsWaiting(id)
 }
 
