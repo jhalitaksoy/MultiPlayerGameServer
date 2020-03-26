@@ -1,18 +1,37 @@
 const logger = require("./logger")
 const { v1: uuidv1 } = require('uuid');
 
-const waitingUsers = []
-const playingUsers = []
+let waitingUsers = []
+let playingUsers = []
+
+exports.getUsers = () => {
+    return waitingUsers
+}
+
+exports.io = undefined
+
+let userCount = 0
 
 exports.Login = function() {
     //todo check request id is correct
     let id = uuidv1()
-    waitingUsers.push({
-        id: id,
-    })
+    let name = "Player " + userCount
 
-    logger.log("info", "New player created : " + id)
-    logger.log("info", "Player moved to waiting list : " + id)
+    const player = {
+        id: id,
+        name : name,
+    }
+
+    waitingUsers.push(player)
+
+    userCount++;
+
+    logger.log("info", "New player created : " + name)
+    logger.log("info", "Player moved to waiting list : " + name)
+
+    if(this.io != undefined){
+        this.io.emit("newPlayer", player)
+    }
 
     return id
 }
@@ -34,8 +53,8 @@ exports.IsMatched = function(id){
 }
 
 exports.Clear = function(){
-    waitingUsers.splice(0,waitingUsers.length)
-    playingUsers.splice(0,playingUsers.length)
+    waitingUsers.splice(0, waitingUsers.length)
+    playingUsers.splice(0, playingUsers.length)
 }
 
 function Play(id, otherId) {
