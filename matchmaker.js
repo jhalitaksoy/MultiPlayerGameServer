@@ -4,7 +4,7 @@ const { v1: uuidv1 } = require('uuid');
 // holds whole players
 let players = []
 
-//holds whole waiting to rival players
+//holds whole waiting for rival players
 let waitingPlayers = []
 
 //hold count for player name
@@ -33,11 +33,27 @@ exports.Match = function () {
     findOtherPlayer(player, (isFind, otherPlayer) => {
         if (isFind) {
 
+            const rivalLastSeen = Date.now() - otherPlayer.lastSeen;
+            if(rivalLastSeen > 2000){
+                logger.log("warn", `${otherPlayer.name} is offline!`)
+                return false
+            }
+
             //create new game
             const game = createGame(player, otherPlayer)
 
             //if find the rival
-            play(player, otherPlayer)
+            play(game, player, otherPlayer)
+
+            const message = {
+                type : "game control",
+                content : "game start",
+             }
+
+             sendMessage(player, message)
+             sendMessage(otherPlayer, message)
+
+             return true
         }
     })
 
@@ -97,6 +113,10 @@ exports.Reset = function () {
     }
 }
 
+/////////////
+///Player///
+///////////
+
 //create player, store lists and send message to client
 const createPlayer = () => {
 
@@ -126,7 +146,9 @@ const nextPlayer = () => {
         name: nextName(),
         state: 'waiting',
         isOnline: true,
-        rival: undefined,
+        rival: undefined, // rival's id
+        inbox: [], // messages
+        lastSeen : Date.now()
     }
 }
 
@@ -138,6 +160,7 @@ const getPlayer = (id, callBack) => {
     for (let user of players) {
         if (user.id == id) {
             callBack(true, user)
+            return
         }
     }
     callBack(false, undefined)
@@ -149,17 +172,18 @@ const clearList = (list) => {
 }
 
 //remove given players from waitingList and change state to playing
-function play(player1, player2) {
-    _play(player1, player2)
-    _play(player2, player1)
+function play(game, player1, player2) {
+    _play(game, player1, player2)
+    _play(game, player2, player1)
 
     logger.log("info", player1.name + " and " + player2.name + " playing.")
 }
 
 //state update, assing rival and remove from waiting list
-function _play(player1, player2) {
+function _play(game, player1, player2) {
     player1.state = 'playing'
-    //player1.rival = player2
+    player1.rival = player2.id
+    player1.game = game.id
     remove(waitingPlayers, player1)
 }
 
@@ -178,12 +202,17 @@ function remove(players, player) {
 function findOtherPlayer(player, callBack) {
     for (let eachPlayer of waitingPlayers) {
         if (eachPlayer.id != player.id) {
-            callBack(true, eachPlayer)
-            break;
+            if(callBack(true, eachPlayer) === true){
+                break;
+            }
         }
     }
     callBack(false, undefined)
 }
+
+/////////////
+/// Game ///
+///////////
 
 //create game and send message that new game
 const createGame = (player1, player2) => {
@@ -194,7 +223,7 @@ const createGame = (player1, player2) => {
     games.push(game)
 
     //send message 
-    this.io.emit("newGame",  game)
+    this.io.emit("newGame", game)
 
     return game
 }
@@ -204,8 +233,12 @@ const nextGame = (player1, player2) => {
     return {
         id: uuidv1(),
         name: nextGameName(),
-        player1: player1.name,
-        player2: player2.name,
+        player1: player1.id,
+        player2: player2.id,
+        player1Name: player1.name,
+        player2Name: player2.name,
+        //player1Messages: [],
+        //player2Messages: [],
     }
 }
 
@@ -214,3 +247,151 @@ let gameCount = 0
 
 //next game name like Game0 , Game1 ...
 const nextGameName = () => { return "Game" + gameCount++ }
+
+//get the game by id
+const getGame = (id, callBack) => {
+    for (let game of games) {
+        if (game.id == id) {
+            callBack(true, game)
+            return
+        }
+    }
+    callBack(false, undefined)
+}
+
+//////////////////
+/// Messaging ///
+////////////////
+
+exports.getMessages = (data) => {
+
+    let resData =  {
+        messages: []
+    }
+
+    if (!CheckDataisCorrect(data)) {
+        logger.log("err", "[UpdateRequest] Post data is incorrect!")
+        return resData
+    }
+
+    //todo : refactor
+
+    //find the player who send a update request
+    getPlayer(data.playerId, (find, player) => {
+        if (find) {
+            resData = {
+                messages: getNewMessages(player, data.localMessageCount)
+            }
+            player.lastSeen = Date.now()
+        } else {
+            logger.log("err", "[UpdateRequest] Player ID is not correct!")
+        }
+    })
+
+    return resData
+}
+
+/*
+ * return form : {
+     messages : [
+         {
+            type : "game control",
+            content : "finished",
+         },
+         ...
+     ]
+ }
+ *
+ * 
+ * 
+ */
+exports.sendMessages = (data) => {
+
+    let resData = {}
+
+    if (!CheckDataisCorrect(data)) {
+        logger.log("err", "[sendMessageRequest] Post data is incorrect!")
+        return resData
+    }
+
+    //find the player who send a update request
+    getPlayer(data.playerId, (find, player) => {
+        if (find) {
+            getPlayer(player.rival, (find2, rival) => {
+                if (find2) {
+                    sendNewMessages(rival, data.messages)
+                    logger.log("info", "Sended messages to rival. Count : " + data.messages.length)
+                    player.lastSeen = Date.now()
+                }else{
+                    logger.log("err", "Player hasn't a rival.")
+                }
+            })
+        } else {
+            logger.log("err", "[sendMessageRequest] Player ID is not correct!")
+        }
+    })
+
+    return resData
+}
+
+//Check client sended data is correct form
+const CheckDataisCorrect = (data) => {
+
+    if (data == undefined) {
+        return false
+    }
+    if (data.playerId == undefined) {
+        return false
+    }
+
+    //maybe more control 
+
+    return true
+}
+
+//add new messages that player send 
+const sendNewMessages = (player, messages) => {
+    for (let message of messages) {
+        sendMessage(player, message)
+    }
+}
+
+//
+const sendMessage = (player, message) => {
+    player.inbox.push(message)
+}
+
+//Get new message from rival
+//algoritm : check equal local message count and real message count then
+//if it is not equal return messages 
+const getNewMessages = (player, localMessageCount) => {
+
+    //const rivalMessages = getMessageList(game, rival)
+    const rivalMessages = player.inbox
+
+    const diff = rivalMessages.length - localMessageCount
+    const readed = rivalMessages.length - diff
+
+    if (rivalMessages != undefined) {
+        if (diff > 0) {
+            logger.log("info", player.name + " received new messages. Count : " + diff)
+            return rivalMessages.slice(readed)
+        }else{
+            return []
+        }
+    } else {
+        logger.log("err", "[UpdateRequest] Game and player not matching. Cannot get rivalMessages list.")
+    }
+}
+
+//get player message list from game object
+//const getMessageList = (game, player) => {
+//    if (game.player1 == player.id) {
+//        return game.player1Messages
+//    } else if (game.player2 == player.id) {
+//        return game.player2Messages
+//    }
+//    else {
+//        return undefined
+//    }
+//}
