@@ -6,6 +6,7 @@ Probably everything that i write is wrong! :(
 
  It's contains : 
 - Matchmaker
+- Messaging between matched clients
 
 [Control Panel Code](https://github.com/jhalitaksoy/GameServerControlPanel)
 ## Used
